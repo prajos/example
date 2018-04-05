@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: DriverApp
+server:
+  port: 0
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka}
+  instance:
+    preferIpAddress: true
+ribbon:
+  http:
+    client:
+      enabled: true
+  MaxConnectionsPerHost: 200
+  MaxTotalHttpConnections: 200
+  MaxTotalConnections: 200
+  MaxHttpConnectionsPerHost: 200    
+endpoints:
+  enabled: true
+  trace:
+    id: trace
+    sensitive: true
+    enabled: true
+  dump:
+    id: dump
+    sensitive: true
+    enabled: true
+  health:
+    id: health
+  metrics:
+    id: metrics
+    sensitive: true
+    enabled: true
+management:
+  contextPath: /loginextActuator
+  security:
+    enabled: true
+security:
+  require_ssl: false 
+  basic:
+    enabled: true

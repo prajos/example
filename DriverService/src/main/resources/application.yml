@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: DriverService
+server:
+  port: 0
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka}
+  instance:
+    preferIpAddress: true
+ribbon:
+  http:
+    client:
+      enabled: true
+endpoints:
+  enabled: true
+  trace:
+    id: trace
+    sensitive: false
+    enabled: true
+  dump:
+    id: dump
+    sensitive: false
+    enabled: true
+  health:
+    id: health
+  metrics:
+    id: metrics
+    sensitive: false
+    enabled: true
+management:
+  contextPath: /loginextActuator
+  security:
+    enabled: true
+security:
+  require_ssl: false 
+  basic:
+    enabled: false

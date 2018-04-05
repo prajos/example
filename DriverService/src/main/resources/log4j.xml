@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration PUBLIC "-//APACHE//DTD LOG4J 1.2//EN" "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+
+	<!-- Appenders -->
+	<appender name="console" class="org.apache.log4j.ConsoleAppender">
+		<param name="Target" value="System.out" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} - [%p] [%t] [%l.%M{39}:%L] : %m%n" />
+		</layout>
+	</appender>
+
+	
+	
+	<!-- Application Loggers -->
+        <appender name="file" class="org.apache.log4j.rolling.RollingFileAppender">
+          <rollingPolicy class="org.apache.log4j.rolling.TimeBasedRollingPolicy">
+              <param name="ActiveFileName" value="/data/loginext/loginextlogs/driverservice/driverservice.log" />
+              <param name="FileNamePattern" value="/data/loginext/loginextlogs/driverservice/driverservice.%d{yyyy-MM-dd}.%i.log.gz" />
+          </rollingPolicy>
+          <triggeringPolicy
+              class="org.apache.log4j.rolling.SizeBasedTriggeringPolicy">
+              <param name="MaxFileSize" value="268435456" />
+          </triggeringPolicy>
+          <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} - [%p] [%t] [%l.%M{39}:%L] : %m%n" />
+          </layout>
+        </appender>
+	<logger name="com.loginext">
+		<level value="info" />
+	</logger>
+	
+	<!-- 3rdparty Loggers -->
+	<logger name="org.springframework.core">
+		<level value="info" />
+	</logger>
+	
+	<logger name="org.springframework.beans">
+		<level value="info" />
+	</logger>
+	
+	<logger name="org.springframework.context">
+		<level value="info" />
+	</logger>
+
+	<logger name="org.springframework.web">
+		<level value="info" /> 
+	</logger>
+	<!-- <category name="org.hibernate.type">
+	    <priority value="TRACE"/>
+	</category> -->
+	<!-- Root Logger -->
+	<root>
+		<priority value="info" />
+		<appender-ref ref="console" />
+ 		<appender-ref ref="file" />
+	</root>
+	
+</log4j:configuration>

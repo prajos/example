@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <contextName>driverservice</contextName>
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>/data/loginext/loginextlogs/${CONTEXT_NAME}/${CONTEXT_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily rollover -->
+            <fileNamePattern>/data/loginext/loginextlogs/${CONTEXT_NAME}/${CONTEXT_NAME}-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <!-- keep 30 days' worth of history -->
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <!-- <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] [%level] %logger - %msg%n</pattern> -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %p [%thread] %logger{10}:%L : %m%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %p [%thread] %logger{10}:%L : %m%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <logger name="org.springframework">
+        <level value="INFO"/>
+    </logger>
+    
+    
+
+</configuration>
