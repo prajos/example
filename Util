@@ -1,0 +1,1498 @@
+package com.loginext.commons.util;
+
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.math.BigInteger;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
+import java.util.StringTokenizer;
+import java.util.TimeZone;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import com.google.i18n.phonenumbers.NumberParseException;
+import com.google.i18n.phonenumbers.PhoneNumberUtil;
+import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber;
+import com.loginext.commons.entity.Session;
+import com.loginext.commons.enums.ResponseMessage;
+import com.loginext.commons.enums.SearchCol;
+import com.loginext.commons.model.AddressDTO;
+import com.loginext.commons.model.AdvanceFilterBuilderRespDTO;
+import com.loginext.commons.model.Error;
+import com.loginext.commons.model.GetLatLongDTO;
+import com.loginext.commons.model.PageDTO;
+import com.loginext.commons.model.Response;
+import com.loginext.commons.model.SearchDeliveryMediumCol;
+import com.loginext.commons.model.SearchTripCol;
+import com.loginext.commons.mongo.model.Filter;
+
+@SuppressWarnings("deprecation")
+public class Util {
+	
+	private static Logger logger = LoggerFactory.getLogger("Util");
+
+	public final static String errorMessage = "There is an error while processing the request";
+	
+	public final static String passwordPattern = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=\\S+$).{6,}$";//(?=.*[@#$%^&+=]) -- for having at least one special character
+
+	private static final String EMAIL_PATTERN ="^[_A-Za-z0-9-\\+]+(\\.[_A-Za-z0-9-]+)*@" + "[A-Za-z0-9-]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$";
+	
+	public static boolean isValidToken(String string) {
+		try {
+			UUID.fromString(string);
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+	
+	public static long subtractDateFromGivenDate(Date date, Date givenDate) {
+		long diff = givenDate.getTime() - date.getTime();
+		long diffMinutes = diff / (60000);
+		return diffMinutes;
+	}
+
+	public static boolean isValidPassword(String password) {
+		if (StringUtils.isBlank(password))
+			return false;
+		return true;
+	}
+
+	public static Date createCustomDate(Date date, int days, String type) {
+		Calendar cal = Calendar.getInstance();
+		cal.setTime(date);
+		if (Constants.DATE_TYPE_ADD.equalsIgnoreCase(type)) {
+			cal.add(Calendar.DAY_OF_MONTH, days);
+		} else if (Constants.DATE_TYPE_SUBTRACT.equalsIgnoreCase(type)) {
+			cal.add(Calendar.DAY_OF_MONTH, -days);
+		}
+		return cal.getTime();
+	}
+
+	public static boolean isNullOrEmpty(String val) {
+		if (StringUtils.isBlank(val))
+			return true;
+		return false;
+	}
+	
+	public static boolean compare(String str1, String str2) {
+	  return (str1==null || str2==null) ? true : str1.trim().equalsIgnoreCase(str2.trim());
+	}
+
+
+	public static String encodeBASE64(String val) {
+		Base64.Encoder encoder = Base64.getEncoder();
+		return encoder.encodeToString(val.getBytes(StandardCharsets.UTF_8));
+	}
+
+	public static String decodeBASE64(String val) {
+		Base64.Decoder decoder = Base64.getDecoder();
+		return new String(decoder.decode(val));
+	}
+
+	public static double calculateHaversineDistance(double lat1, double lng1, double lat2, double lng2) {
+		if((lat1 == lat2 && lng1 == lng2) || !isValidLatitudeWithNullCheck(lat1) || !isValidLatitudeWithNullCheck(lat2) || !isValidLongitudeWithNullCheck(lng1) || !isValidLongitudeWithNullCheck(lng2)) {
+			return 0.0;
+		}
+		double earthRadius = 6371;
+		double dLat = Math.toRadians(lat2 - lat1);
+		double dLng = Math.toRadians(lng2 - lng1);
+		double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(Math.toRadians(lat1))
+				* Math.cos(Math.toRadians(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+		double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		float dist = (float) (earthRadius * c);
+		return dist;
+	}
+
+	public static Date addHoursToDate(Date oldDate, int hours) {
+		Calendar cal = Calendar.getInstance(); // creates calendar
+		cal.setTime(oldDate); // sets calendar time/date
+		cal.add(Calendar.HOUR_OF_DAY, hours); // adds one hour
+		return cal.getTime(); // returns new date object, one hour in the future
+	}
+
+	public static URI buildUri(Session session, String url) {
+		try {
+			UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
+					.queryParam("token", null != session ? session.getToken() : "");
+			URI uri = builder.build().encode().toUri();
+			return uri;
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			return null;
+		}
+	}
+	
+	public static URI buildUriForDummySession(Session session, String url) {
+		try {
+			UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
+					.queryParam("token", null != session ? session.getToken() : "")
+					.queryParam("userId", null != session ? session.getUserId() : "")
+					.queryParam("superClientId", null != session ? session.getSuperClientId() : "")
+					.queryParam("userGroupId", null != session ? session.getUserGroupId() : null)
+					.queryParam("currentClientBranchId", null != session ? session.getCurrentClientBranchId() : null)
+					.queryParam("clientId", null != session ? session.getClientId() : "")
+					.queryParam("modelType", null != session ? session.getModelType() : "")
+					.queryParam("timeZone", null != session ? session.getTimeZone() : "")
+					.queryParam("planType",
+							null != session && null != session.getPlanType() ? session.getPlanType() : null)
+					.queryParam("clientExpiryDt",
+							null != session && null != session.getClientExpriyDt()
+									? DateUtility.getDate(session.getClientExpriyDt()) : null)
+					.queryParam("locale", null != session ? session.getLocale() : "")
+					.queryParam("userName", session.getUserName())
+					.queryParam("superType", null != session ? session.getSuperType() : "");
+			URI uri = builder.build().encode().toUri();
+			return uri;
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			return null;
+		}
+	}
+
+	public static URI buildPageableUri(Session session, PageDTO page, String url) {
+		try {
+			UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
+					.queryParam("token", null != session ? session.getToken() : "")
+					.queryParam("number", null != page ? page.getNumber() : "")
+					.queryParam("size", null != page ? page.getSize() : "")
+					.queryParam("sortOrder", null != page ? page.getSortOrder() : "")
+					.queryParam("sortBy", null != page ? page.getSortBy() : "")
+					.queryParam("searchText", null != page ? page.getSearchText() : "")
+					.queryParam("searchBy", null != page ? page.getSearchBy() : "");
+			URI uri = builder.build().encode().toUri();
+			return uri;
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			return null;
+		}
+	}
+
+	public static URI buildPageableUriWithDummySession(Session session, PageDTO page, String url) {
+		try {
+			//List<Integer> clientBranches = session.getClientBranches();
+			UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
+					.queryParam("token", null != session ? session.getToken() : "")
+					.queryParam("userId", null != session ? session.getUserId() : "")
+					.queryParam("superClientId", null != session ? session.getSuperClientId() : "")
+					.queryParam("currentClientBranchId", null!=session?session.getCurrentClientBranchId():null)
+					.queryParam("clientId", null != session ? session.getClientId() : "")
+					.queryParam("userGroupId", null!=session?session.getUserGroupId():null)
+					.queryParam("number", null != page ? page.getNumber() : "")
+					.queryParam("size", null != page ? page.getSize() : "")
+					.queryParam("sortOrder", null != page ? page.getSortOrder() : "")
+					.queryParam("sortBy", null != page ? page.getSortBy() : "")
+					.queryParam("searchText", null != page ? page.getSearchText() : "")
+					.queryParam("searchBy", null != page ? page.getSearchBy() : "")
+					.queryParam("modelType", null != session ? session.getModelType() : "")
+					.queryParam("timeZone", null != session ? session.getTimeZone() : "")
+					.queryParam("planType", null != session && null !=session.getPlanType() ? session.getPlanType() : null)
+					.queryParam("clientExpiryDt", null != session && null !=session.getClientExpriyDt() ? DateUtility.getDate(session.getClientExpriyDt()) : null)
+					.queryParam("locale", null != session ? session.getLocale() : "")
+					.queryParam("superType", null != session ? session.getSuperType() : "");
+			URI uri = builder.build().encode().toUri();
+			return uri;
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			return null;
+		}
+	}
+
+	
+	public static String convertListToQueryParam(String vals) {
+		String[] items = vals.substring(1, vals.length() - 1).split(",");
+		String val = "";
+		if (null != items && items.length > 0) {
+			for (String item : items) {
+				try {
+					if (null != item && item.trim().length() > 0)
+						val = val + "," + Integer.valueOf(item.trim());
+				} catch (Exception ex) {
+
+				}
+			}
+		}
+		if(!Util.isNullOrEmpty(val))
+			val = val.substring(1);
+		return val.trim();
+	}
+
+	public static HttpEntity<Session> buildHttpEntity(MediaType mediaType) {
+		HttpHeaders headers = new HttpHeaders();
+		if (MediaType.APPLICATION_XML.equals(mediaType)) {
+			headers.setContentType(MediaType.APPLICATION_XML);
+		} else if (MediaType.APPLICATION_JSON.equals(mediaType)) {
+			headers.setContentType(MediaType.APPLICATION_JSON);
+		}
+		return new HttpEntity<>(headers);
+	}
+
+	public static Integer getNumericValue(String _val) {
+		if (StringUtils.isNumeric(_val)) {
+			return Integer.parseInt(_val);
+		}
+		return null;
+	}
+
+	public static PageDTO buildPageableObject(HttpServletRequest request) {
+		PageDTO _page = new PageDTO();
+		Integer _pnumbr = Util.getNumericValue(request.getParameter("pageNumber"));
+		_page.setNumber(_pnumbr != null ? _pnumbr : Constants.DEFAULT_PAGE_NUMBER);
+		Integer _psize = Util.getNumericValue(request.getParameter("pageSize"));
+		_page.setSize(_psize != null ? _psize : Constants.DEFAULT_PAGE_SIZE);
+		_page.setSearchText(request.getParameter("searchText"));
+		_page.setSearchBy(request.getParameter("searchBy"));
+		String _order = request.getParameter("sortOrder");
+		_page.setSortOrder(Util.isNullOrEmpty(_order) ? "DESC" : _order.trim());
+		_page.setSortBy(request.getParameter("sortBy"));
+		return _page;
+	}
+
+	public static List<Integer> convertCSVStringToList(String data) {
+		String[] items = data.split(",");
+		List<Integer> vals = new ArrayList<>();
+		if (null != items && items.length > 0) {
+			for (String item : items) {
+				try {
+					if (null != item && item.trim().length() > 0)
+						vals.add(Integer.valueOf(item.trim()));
+				} catch (Exception ex) {
+				}
+			}
+		}
+		return vals;
+	}
+
+	public static HashMap<String, String> buildSearchCriteria(PageDTO page) {
+		String[] texts = page.getSearchText().split(Constants.PAGE_SEPARATOR);
+		String[] cols = page.getSearchBy().split(Constants.PAGE_SEPARATOR);
+		HashMap<String, String> mapper = new HashMap<>();
+		if (texts.length == cols.length) {
+			int i = 0; 
+			for (String col : cols) {
+				mapper.put(col.trim().toUpperCase(), texts[i]);
+				i++;
+			}
+		}
+		return mapper;
+	}
+	
+	public static long subtractCurrentFromGivenDate(Date givenDate) {
+		Date currentDate = new Date();
+		long diff = givenDate.getTime() - currentDate.getTime();
+		long diffMinutes = diff / (60000);
+		return diffMinutes;
+	}
+	
+	public static long subtractHoursFromDates(Date startDate,Date endDate) {
+	  	long diff = endDate.getTime() - startDate.getTime();
+        long diffHours = diff / (60 * 60 * 1000);
+        return diffHours;
+	}
+	
+	public static Date subtractMinutesFromDate(Date oldDate, int minutes) {
+		Calendar cal = Calendar.getInstance(); // creates calendar
+		cal.setTime(oldDate); // sets calendar time/date
+		cal.add(Calendar.MINUTE, (minutes) * (-1)); // adds one hour
+		return cal.getTime(); // returns new date object, one hour in the future
+	}
+	
+	public static boolean isValidLatitude(double lat) {
+		return (lat <= 90 && lat >= -90);
+	}
+	
+	public static boolean isValidLongitude(double lng) {
+		return (lng <= 180 && lng >= -180);
+	}
+	
+	@SuppressWarnings("rawtypes")
+	public static Response buildResponse(int val, String message) {
+		Response apiResponse = new Response();
+		apiResponse.setStatus(val);
+		apiResponse.setMessage(message);
+		apiResponse.setHasError(Boolean.TRUE);
+		return apiResponse;
+	}
+	
+	@SuppressWarnings("rawtypes")
+	public static Response buildSuccessResponse(int val, String message) {
+		Response apiResponse = new Response();
+		apiResponse.setStatus(val);
+		apiResponse.setMessage(message);
+		apiResponse.setHasError(Boolean.FALSE);
+		return apiResponse;
+	}
+	
+	public static String formatList(List<? extends Object> messages){
+		return messages.toString().substring(1, messages.toString().length()-1);
+	}
+	
+	public static boolean isPasswordCriteriaMatch(String password){
+		Pattern pattern = Pattern.compile(passwordPattern);
+		Matcher matcher = pattern.matcher(password);
+		return matcher.matches();
+	}
+	
+	public static String encodeUsingSalt(String string){
+		String encryptedCode = "";
+		try{
+			encryptedCode = BCrypt.hashpw(string.toUpperCase(), BCrypt.gensalt(8, SecureRandom.getInstance("SHA1PRNG")));
+		}catch(Exception ex){
+			ex.printStackTrace();
+		}
+		return encryptedCode;
+	}
+	
+	public static boolean validateSecretKey(String secretKey, String sessionValue){
+		try {
+			if (!StringUtils.isBlank(secretKey) && BCrypt.checkpw(sessionValue, secretKey)) {
+				return true;
+			}
+		} catch (Exception ex) {
+			logger.error("exception on validate secrete key {} and sessionvalue {} exception {}",secretKey,sessionValue,ex.getMessage()+" Caused due to Invalid secrete key");
+		}
+		return false;
+	}
+	
+	public static Response<Object> validateDataTypes(List<?> source, List<?> targetData, String module, String superType){
+		try{
+			List<String> ignoreModuleList = Arrays.asList("route_", "branch_");
+			Response<Object> response = new Response<Object>();
+			Map<String,List<Error>> errorMessages = new HashMap<String,List<Error>>();
+			Class<?> target = targetData.get(0).getClass();
+			//targetData.remove(0);
+			List<Field> parentFields = Arrays.asList(target.getSuperclass().getDeclaredFields());
+			List<Field> childFields = Arrays.asList(target.getDeclaredFields());
+			List<Field> targetFields = new ArrayList<>(parentFields.size() + childFields.size());
+			targetFields.addAll(parentFields);
+			targetFields.addAll(childFields);
+			 Map<String, Field> toFields = analyze(targetFields);
+			boolean validated = true;
+			Map<String, Class<?>> dataTypeMap = new HashMap<String, Class<?>>();
+			Map<String, Class<?>> subDataTypeMap = new HashMap<String, Class<?>>();
+			for(Field field: targetFields){
+				if(field.getType().equals(List.class)){
+					 ParameterizedType fieldGenericType =
+				                (ParameterizedType)field.getGenericType();
+					 Class<?> fieldTypeParameterType =
+				                (Class<?>)fieldGenericType.getActualTypeArguments()[0];
+					 subDataTypeMap.put(field.getName(), fieldTypeParameterType);
+				}
+				dataTypeMap.put(field.getName(), field.getType());
+				
+			}
+			int rowNum = 0;
+			for(Object dataRow: source){
+				Object targetObj = target.newInstance();
+				List<String> invalidNumbers = new ArrayList<String>();
+				List<String> invalidBooleans = new ArrayList<String>();
+				List<String> invalidDecimals = new ArrayList<String>();
+				List<String> invalidDates = new ArrayList<String>();
+				List<String> invalidCharacters = new ArrayList<String>();
+				Field[] sourceFields = dataRow.getClass().getDeclaredFields();
+				for(Field dataField: sourceFields){
+					Field targetField = toFields.get(dataField.getName());
+					if(dataField.getName().equals("shipmentCrateMappings")){
+						System.out.println(dataTypeMap.get(dataField.getName()));
+					}
+					String data = null;
+					Object typedData = null;
+					try{
+						if(null != dataField.get(dataRow) && !dataField.get(dataRow).equals("")){
+							data = dataField.get(dataRow).toString();
+							// type checks begin
+							if(dataTypeMap.get(dataField.getName()).equals(String.class)){
+								targetField.setAccessible(true);
+								targetField.set(targetObj, data);
+								continue;
+							}else if(dataTypeMap.get(dataField.getName()).equals(Integer.class)){
+								try{
+									typedData = Integer.parseInt(data);
+								}catch(Exception e){
+									if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+										String dataFieldName = dataField.getName();
+										if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+											dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+										}
+										invalidNumbers.add(dataFieldName);
+									}
+									else{
+										invalidNumbers.add(dataField.getName());
+									}
+									validated = false;
+								}
+							}else if(dataTypeMap.get(dataField.getName()).equals(Double.class)){
+								try{
+									Double typedDataDouble = Double.parseDouble(data);
+									
+									if(typedDataDouble.isNaN()){
+										if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+											String dataFieldName = dataField.getName();
+											if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+												dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+											}
+											invalidDecimals.add(dataFieldName);
+										}
+										else{
+											invalidDecimals.add(dataField.getName());
+										}
+										validated = false;
+									}
+									typedData =typedDataDouble; 
+								}catch(Exception e){
+									if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+										String dataFieldName = dataField.getName();
+										if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+											dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+										}
+										invalidDecimals.add(dataFieldName);
+									}
+									else{
+										invalidDecimals.add(dataField.getName());
+									}
+									validated = false;
+								}
+							}else if(dataTypeMap.get(dataField.getName()).equals(Date.class)){
+								try{
+									if ("route".equals(module)) {
+										SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
+										Date parsedDate = dateFormat.parse(data);
+										String formattedDateStr = dateFormat.format(parsedDate);
+										typedData = dateFormat.parse(formattedDateStr);
+									} else {
+										LocalDateTime t = LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").parse(data));
+										SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+										String dateString = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(t);
+										typedData = dateFormat.parse(dateString);
+									}
+								}catch(Exception e){
+									if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+										String dataFieldName = dataField.getName();
+										if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+											dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+										}
+										invalidDates.add(dataFieldName);
+									}
+									else{
+										invalidDates.add(dataField.getName());
+									}
+									validated = false;
+								}
+							}else if(dataTypeMap.get(dataField.getName()).equals(Character.class)){
+								typedData = data.charAt(0);
+								if(data.length() != 1){
+									if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+										String dataFieldName = dataField.getName();
+										if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+											dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+										}
+										invalidCharacters.add(dataField.getName());
+									}
+									else{
+										invalidCharacters.add(dataField.getName());
+									}
+									validated = false;
+								}
+							}else if(dataTypeMap.get(dataField.getName()).equals(boolean.class)){
+								try{
+									if(data.equals("true") || data.equals("false")){
+										typedData = Boolean.parseBoolean(data);
+									}else{
+										if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+											String dataFieldName = dataField.getName();
+											if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+												dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+											}
+											invalidBooleans.add(dataFieldName);
+										}
+										else{
+											invalidBooleans.add(dataField.getName());
+										}
+										validated = false;
+									}
+								}catch(Exception ex){
+									if(superType != null && Constants.FORCE.equalsIgnoreCase(superType)){
+										String dataFieldName = dataField.getName();
+										if(StringUtils.containsIgnoreCase(dataFieldName,"order")){
+											dataFieldName = dataFieldName.replaceAll("(?i)order", "task");
+										}
+										invalidBooleans.add(dataFieldName);
+									}
+									else{
+										invalidBooleans.add(dataField.getName());
+									}
+									validated = false;
+								}
+							}else if(dataTypeMap.get(dataField.getName()).equals(List.class)){
+								List<?> sourceList = (List<?>) dataField.get(dataRow);
+								Class<?> targetSubListClass = subDataTypeMap.get(dataField.getName());
+								Object targetSubListObj = targetSubListClass.newInstance();
+								List<?> targetSublist = new ArrayList();
+								Method add = List.class.getDeclaredMethod("add",Object.class);
+								add.invoke(targetSublist, targetSubListObj);
+								Response<Object> subResponse = validateDataTypes(sourceList, targetSublist, module,superType);
+								if(subResponse.getHasError()){
+									validated = false;
+									errorMessages.putAll((Map<? extends String, ? extends List<Error>>) subResponse.getError());
+								}else{
+									typedData = targetSublist;
+								}
+								System.out.println("interface");
+							}
+							if(validated){
+								targetField.setAccessible(true);
+								targetField.set(targetObj, typedData);
+							}
+						}
+						
+					}catch(Exception ex){
+						logger.error(Util.errorMessage, ex);
+					}
+				}
+				if (!validated) {
+					List<Error> errorList = fillErrorObj(invalidNumbers, invalidDecimals, invalidDates,
+							invalidCharacters, invalidBooleans);
+					String errorMessageKey = (ignoreModuleList.contains(module + "_") ? "" : (module + "_")) + rowNum;
+
+					if (errorMessages.containsKey(errorMessageKey)) {
+						List<Error> mapErrors = errorMessages.get(errorMessageKey);
+						mapErrors.addAll(errorList);
+						errorMessages.put(errorMessageKey, mapErrors);
+						validated = true;
+					} else if (CollectionUtils.isNotEmpty(errorList)) {
+						errorMessages.put(errorMessageKey, errorList);
+						validated = true;
+					}
+				}
+				rowNum++;
+				Method add = List.class.getDeclaredMethod("add",Object.class);
+				add.invoke(targetData, targetObj);
+				//targetData.add(targetObj);
+			}
+			if(!validated || !errorMessages.isEmpty()){
+				response.setStatus(400);
+				response.setHasError(true);
+				response.setError(errorMessages);
+				response.setMessage(ResponseMessage.FAIL.fromValue());
+			}
+			targetData.remove(0);
+			return response;
+		}catch(Exception ex){
+			logger.error(Util.errorMessage);
+		}
+		return null;
+	}
+	
+	private static Map<String, Field> analyze(List<Field> object) {
+        if (object == null) throw new NullPointerException();
+
+        Map<String, Field> map = new TreeMap<String, Field>();
+
+            for (Field field : object) {
+                if (!Modifier.isStatic(field.getModifiers())) {
+                    if (!map.containsKey(field.getName())) {
+                        map.put(field.getName(), field);
+                    }
+                }
+            }
+        return map;
+    }
+	
+	public static List<Error> fillErrorObj(List<String> invalidNumbers, List<String> invalidDecimals, List<String> invalidDates, List<String> invalidCharacters, List<String> invalidBooleans){
+		List<Error> errorList = new ArrayList<Error>();
+		if(!invalidNumbers.isEmpty()){
+			Error error = new Error();
+			error.setMessage(Arrays.asList("Invalid number(s)."));
+			error.setKey(String.join(", ", invalidNumbers));
+			errorList.add(error);
+		}
+		if(!invalidDecimals.isEmpty()){
+			Error error = new Error();
+			error.setMessage(Arrays.asList("Invalid number(s)."));
+			error.setKey(String.join(", ", invalidDecimals));
+			errorList.add(error);
+		}
+		if(!invalidDates.isEmpty()){
+			Error error = new Error();
+			error.setMessage(Arrays.asList("Invalid date(s)."));
+			error.setKey(String.join(", ", invalidDates));
+			errorList.add(error);
+		}
+		if(!invalidCharacters.isEmpty()){
+			Error error = new Error();
+			error.setMessage(Arrays.asList("Not a character."));
+			error.setKey(String.join(", ", invalidCharacters));
+			errorList.add(error);
+		}
+		if(!invalidBooleans.isEmpty()){
+			Error error = new Error();
+			error.setMessage(Arrays.asList("Value should be true/false"));
+			error.setKey(String.join(", ", invalidBooleans));
+			errorList.add(error);
+		}
+		return errorList;
+	}
+	
+	public static String callAPI(String url){
+		StringBuilder result = new StringBuilder();
+		HttpResponse response = null;
+		HttpClient client = new DefaultHttpClient();
+		//BasicCookieStore cookieStore = new BasicCookieStore();
+		//BasicClientCookie cookie = null;
+
+		// Start Setting the Cookie 
+		//cookie = new BasicClientCookie("Token", "");   
+		//cookie.setDomain("localhost");
+		//cookie.setPath("/");
+		//cookieStore.addCookie(cookie);
+		//client = HttpClientBuilder.create().setDefaultCookieStore(cookieStore).build();
+		// End Setting the Cookie 
+		try{
+			HttpPost post = new HttpPost(url);
+			post.setHeader("Referer", "localhost");
+			post.setHeader("Content-type", "application/json");
+			BufferedReader rd;
+
+			String line = "";
+			response = client.execute(post); 	
+			rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+			while((line = rd.readLine()) != null){
+				result.append(line);
+			}
+		}catch(Exception ex){
+			logger.error("Util :: callAPI :: ERROR while fetching the data");
+			logger.error("ERROR = ",ex);
+		}
+		return result.toString();
+	}
+	
+	public static String  getUUID32(){
+		return UUID.randomUUID().toString().replaceAll("-", "");
+	}
+	
+	public static String getOrderNo(){
+		return UUID.randomUUID().toString().replaceAll("-", "").concat("_"+new Date());
+	}
+	
+	public static Response<Object> validateMileModelType(String modelType){
+		Response<Object> response = new Response<Object>();
+		if (!(modelType.equals(Constants.MODELTYPE_FM)||modelType.equals(Constants.MODELTYPE_LM)||modelType.equals(Constants.MODELTYPE_FMLM)
+				||modelType.equals(Constants.MODELTYPE_SM))){
+			response.setMessage("Invalid client");
+			response.setStatus(400);
+			response.setHasError(true);
+		}
+		return response;
+	}
+	
+	public static Response<Object> validateMileModelTypeForMultiDestOrder(String modelType){
+		Response<Object> response = new Response<Object>();
+		if (!(modelType.equals(Constants.MODELTYPE_LM)||modelType.equals(Constants.MODELTYPE_FMLM)
+				||modelType.equals(Constants.MODELTYPE_SM))){
+			response.setMessage("Invalid client");
+			response.setStatus(400);
+			response.setHasError(true);
+		}
+		return response;
+	}
+	
+	public static Response<Object> validateHaulModelType(String modelType){
+		Response<Object> response = new Response<Object>();
+		if (!(modelType.equals(Constants.MODELTYPE_LH))) {
+			response.setMessage("Invalid client");
+			response.setStatus(400);
+			response.setHasError(true);
+		}
+		return response;
+	}
+	
+	public static Response<Object> validateOnDemandModelType(String modelType){
+		Response<Object> response = new Response<Object>();
+		if (!(modelType.equals(Constants.MODELTYPE_ONDEMAND))){
+			response.setMessage("Invalid client");
+			response.setStatus(400);
+			response.setHasError(true);
+		}
+		return response;
+	}
+	
+	/*public static String getUtcDate(String columnVal, String currentTimeZone) {
+		try {
+			if(columnVal != null){
+				TimeZone _timezone = TimeZone.getTimeZone(currentTimeZone);
+				DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				formatter.setTimeZone(_timezone);
+				Date date;
+					date = formatter.parse(columnVal);
+				String d = formatter.format(date);
+				System.out.println(d);
+				
+				TimeZone _utcTimezone = TimeZone.getTimeZone("UTC");
+				DateFormat formatter1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				formatter1.setTimeZone(_utcTimezone);
+				String utcDate = formatter1.format(date);
+				return utcDate;
+			}
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		return columnVal;
+	}*/
+	
+	public static String getDateByTimeZone(Date columnVal, String fromTimeZone,String toTimeZone) {
+		try{
+			if(columnVal==null){
+				return null;
+			}
+			Date finalDate = convertTimeZone(columnVal,TimeZone.getTimeZone(fromTimeZone),TimeZone.getTimeZone(toTimeZone));
+			DateFormat formatter1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			String finalDateString = formatter1.format(finalDate);
+			return finalDateString;
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	public static String getDateByTimeZone(Date columnVal, String fromTimeZone,String toTimeZone,String format) {
+		try{
+			if(columnVal==null){
+				return null;
+			}
+			Date finalDate = convertTimeZone(columnVal,TimeZone.getTimeZone(fromTimeZone),TimeZone.getTimeZone(toTimeZone));
+			DateFormat formatter1 = new SimpleDateFormat(format);
+			String finalDateString = formatter1.format(finalDate);
+			return finalDateString;
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	public static int getOffsetByTimeZone(String timeZone) {
+		//It returns offset in minutes
+		try{
+			TimeZone timezone = TimeZone.getTimeZone(timeZone);
+			int offsetMinutes = timezone.getOffset(Calendar.ZONE_OFFSET)/(1000*60);
+			return offsetMinutes;
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		return 0;
+	}
+	
+	public static String getDateByTimeZone(String columnVal, String fromTimeZone,String toTimeZone){
+		try{
+			if(columnVal==null){
+				return null;
+			}
+			DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			Date fromDate = formatter.parse(columnVal);
+			
+			Date finalDate = convertTimeZone(fromDate,TimeZone.getTimeZone(fromTimeZone),TimeZone.getTimeZone(toTimeZone));
+			DateFormat formatter1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			String finalDateString = formatter1.format(finalDate);
+			return finalDateString;
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	public static String getDateByTimeZone(String columnVal, String fromTimeZone,String toTimeZone, String format){
+		try{
+			if(columnVal==null){
+				return null;
+			}
+			DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			Date fromDate = formatter.parse(columnVal);
+			
+			Date finalDate = convertTimeZone(fromDate,TimeZone.getTimeZone(fromTimeZone),TimeZone.getTimeZone(toTimeZone));
+			DateFormat formatter1 = new SimpleDateFormat(format);
+			String finalDateString = formatter1.format(finalDate);
+			return finalDateString;
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	public static Date convertTimeZone(Date date, TimeZone fromTimeZone, TimeZone toTimeZone){
+	    long fromTimeZoneOffset = getTimeZoneUTCAndDSTOffset(date, fromTimeZone);
+	    long toTimeZoneOffset = getTimeZoneUTCAndDSTOffset(date, toTimeZone);
+	    return new Date(date.getTime() + (toTimeZoneOffset - fromTimeZoneOffset));
+	}
+	
+	private static long getTimeZoneUTCAndDSTOffset(Date date, TimeZone timeZone){
+	    long timeZoneDSTOffset = 0;
+	    if(timeZone.inDaylightTime(date)){
+	        timeZoneDSTOffset = timeZone.getDSTSavings();
+	    }
+	    return timeZone.getRawOffset() + timeZoneDSTOffset;
+	}
+	
+	public static AddressDTO settoLowerCase(AddressDTO addressDTO) {
+		// TODO Auto-generated method stub
+		if(addressDTO.getApartment()!=null){
+			addressDTO.setApartment(addressDTO.getApartment().toLowerCase());
+		}
+		if(addressDTO.getStreetName()!=null){
+			addressDTO.setStreetName(addressDTO.getStreetName().toLowerCase());
+		}
+		if(addressDTO.getAreaName()!=null){
+			addressDTO.setAreaName(addressDTO.getAreaName().toLowerCase());
+		}
+		if(addressDTO.getLandmark()!=null){
+			addressDTO.setLandmark(addressDTO.getLandmark().toLowerCase());
+		}
+		if(addressDTO.getCity()!=null){
+			addressDTO.setCity(addressDTO.getCity().toLowerCase());
+		}
+		if(addressDTO.getState()!=null){
+			addressDTO.setState(addressDTO.getState().toLowerCase());
+		}
+		return addressDTO;
+	}
+	
+	public static boolean isGeocodingAcceptible(ArrayList<String> types){
+		if(types != null){
+			String[] acceptibleTypes = { "premise", "subpremise", "street_address", "neighborhood", "route", "intersection", "point_of_interest", "colloquial_area", "sublocality",
+				"sublocality_level_1", "sublocality_level_2", "sublocality_level_3", "sublocality_level_4",
+				"sublocality_level_5", "natural_feature", "airport", "park"};
+		
+			String[] rejectTypes = {  "postal_code","administrative_area_level_1", "administrative_area_level_2", "administrative_area_level_3",
+				"administrative_area_level_4", "administrative_area_level_5",  "locality", "postal_code", "establishment", "country" };
+		
+			List<String> acceptList = Arrays.asList(acceptibleTypes);
+		
+			for (int i = 0; i < types.size(); i++){
+				if(acceptList.contains(types.get(i))){
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	
+	
+	/*public static String getDate(String columnVal,String fromTimeZone, String toTimeZone) {
+		try {
+			if(columnVal != null){
+				TimeZone _fromTimezone = TimeZone.getTimeZone(fromTimeZone);
+				DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				formatter.setTimeZone(_fromTimezone);
+				Date date = formatter.parse(columnVal);
+				
+				TimeZone _toTimezone = TimeZone.getTimeZone(toTimeZone);
+				DateFormat formatter1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				formatter1.setTimeZone(_toTimezone);
+				String utcDate = formatter1.format(date);
+				return utcDate;
+			}
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		return columnVal;
+	}*/
+	
+	public static Date shiftDate(Date dt,String from,String to ) {
+		  if(dt == null || from== null || to == null) return null;
+		  
+	      TimeZone fromTimezone =TimeZone.getTimeZone(from);//get Timezone object
+	      TimeZone toTimezone=TimeZone.getTimeZone(to);
+	      long fromOffset = fromTimezone.getOffset(dt.getTime());//get offset
+	      long toOffset = toTimezone.getOffset(dt.getTime());
+	      //calculate offset difference and calculate the actual time
+	      long convertedTime = dt.getTime() - (fromOffset - toOffset);
+	      Date d2 = new Date(convertedTime);
+	     
+	      return d2;
+	}
+	
+//	public static Date getDate(Date columnVal,String fromTimeZone, String toTimeZone) {
+//		try {
+//			if(columnVal != null){
+//				TimeZone _fromTimezone = TimeZone.getTimeZone(fromTimeZone);
+//				DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//				formatter.setTimeZone(_fromTimezone);
+//				String fromDateString = formatter.format(columnVal);
+//				
+//				TimeZone _toTimezone = TimeZone.getTimeZone(toTimeZone);
+//				DateFormat formatter1 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//				formatter1.setTimeZone(_toTimezone);
+//				Date toDate = formatter1.parse(fromDateString);
+//				return toDate;
+//			}
+//		} catch (ParseException e) {
+//			e.printStackTrace();
+//		}
+//		return columnVal;
+//	}
+	
+	public static Date getUtcMinDate(String timeZone)
+	{
+		if(null == timeZone)
+		{
+			timeZone = "IST";
+		}
+		Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(timeZone));
+		calendar.set(Calendar.HOUR_OF_DAY, 0);           
+		calendar.set(Calendar.MINUTE, 0);                
+		calendar.set(Calendar.SECOND, 0);                
+		calendar.set(Calendar.MILLISECOND, 0);
+		Date fromDate = calendar.getTime();
+		SimpleDateFormat lv_formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); 
+		lv_formatter.setTimeZone(TimeZone.getTimeZone(Constants.UTC));  
+		String lv_dateFormateInUTC = lv_formatter.format(fromDate); 
+		return DateUtility.getDateFromString(lv_dateFormateInUTC);
+	}
+	public static Date getUtcMaxDate(String timeZone)
+	{
+		if(StringUtils.isBlank(timeZone))
+		{
+			timeZone = "IST";
+		}
+		Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(timeZone));
+		calendar.set(Calendar.HOUR_OF_DAY, 23);          
+		calendar.set(Calendar.MINUTE, 59);               
+		calendar.set(Calendar.SECOND, 59);
+		calendar.set(Calendar.MILLISECOND, 59); 
+		Date toDate = calendar.getTime();
+		SimpleDateFormat lv_formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		lv_formatter.setTimeZone(TimeZone.getTimeZone(Constants.UTC));  
+		String lv_dateFormateInUTC = lv_formatter.format(toDate); 
+		return DateUtility.getDateFromString(lv_dateFormateInUTC);
+	}
+	
+	
+	public static String getDateInString(Date columnVal, String fromTimeZone, String toTimeZone) {
+		String date = null;
+		try {
+			if (columnVal != null) {
+				TimeZone _toTimezone = TimeZone.getTimeZone(toTimeZone);
+				DateFormat formatter = new SimpleDateFormat("dd, MMM yyyy hh:mm a");
+				formatter.setTimeZone(_toTimezone);
+				date = formatter.format(columnVal);
+				return date;
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return date;
+	}
+	
+	public static String getDateInString(Date columnVal, String fromTimeZone, String toTimeZone,String format) {
+		String date = null;
+		try {
+			if (columnVal != null) {
+				TimeZone _toTimezone = TimeZone.getTimeZone(toTimeZone);
+				DateFormat formatter = new SimpleDateFormat(format);
+				formatter.setTimeZone(_toTimezone);
+				date = formatter.format(columnVal);
+				return date;
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return date;
+	}
+
+	public static String getDateFormatInString(Date columnVal, String fromTimeZone, String toTimeZone) {
+		String date = null;
+		try {
+			if (columnVal != null) {
+				TimeZone _toTimezone = TimeZone.getTimeZone(toTimeZone);
+				DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				formatter.setTimeZone(_toTimezone);
+				date = formatter.format(columnVal);
+				return date;
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return date;
+	}
+	
+	public static Date removeTime(Date date) {    
+        Calendar cal = Calendar.getInstance();  
+        cal.setTime(date);  
+        cal.set(Calendar.HOUR_OF_DAY, 0);  
+        cal.set(Calendar.MINUTE, 0);  
+        cal.set(Calendar.SECOND, 0);  
+        cal.set(Calendar.MILLISECOND, 0);  
+        return cal.getTime(); 
+    }
+	
+	public static  String getDateInClientTimeZone(Date date, String timeZone, String format) {
+		SimpleDateFormat _format = new SimpleDateFormat(format);
+		_format.setTimeZone(TimeZone.getTimeZone(timeZone)); //Pacific/Fakaofo //Asia/Kolkata//Pacific/Rarotonga
+		String result = _format.format(date);	
+		return result;
+	}
+	
+	public static boolean checkAndCompare(Object newValue, Object oldValue) {
+		try {
+			if (newValue instanceof String || oldValue instanceof String) {
+				if ((StringUtils.isBlank((String) newValue) && !StringUtils.isBlank((String) oldValue))
+						|| (!StringUtils.isBlank((String) newValue) && (oldValue == null
+								|| StringUtils.isBlank((String) oldValue) || !oldValue.equals(newValue))))
+					return true;
+			} else {
+				if ((newValue == null && oldValue != null)
+						|| (newValue != null && (oldValue == null || !oldValue.equals(newValue))))
+					return true;
+			}
+		} catch (Exception e) {
+			logger.error("There is an error while checkAndCompare Operation :: New Value=" + newValue + " :: Old Value="
+					+ oldValue);
+			logger.error("ERROR = ", e);
+		}
+		return false;
+	}
+	
+    public static String checkForNullAndConvertToString(Object value)
+    {
+    	if(null != value){
+    		return value.toString();
+    	}
+    	return null;
+    }
+    
+    public static String checkForDateNullAndFormatDate(Date date)
+    {
+    	if(null != date){
+    		return new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.S").format(date).toString();
+    	}
+    	return null;
+    }
+    
+    public static String checkForDateNullAndFormatDateHH(Date date)
+    {
+    	if(null != date){
+    		return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S").format(date).toString();
+    	}
+    	return null;
+    }
+	
+	public static Session getDummySession() {
+		Session session = new Session();
+		session.setId(-1L);
+		session.setUserGroupId(-1L);
+		session.setClientId(-1L);
+		session.setUserId(-1L);
+		session.setSuperClientId(-1L);
+		session.setCurrentClientBranchId(-1L);
+		return session;
+	}
+	
+	public static String escapeSql(String inputString) {
+		if (null != inputString)
+			return inputString.replace("'", "''");
+		return inputString;
+	}
+	
+	public static String escape(String inputString) {
+		if (null != inputString){
+			inputString = inputString.replace('"', '\"');
+			return inputString;
+		}
+		return inputString;
+	}
+
+	public static String encodePassword(String userName,String originalPassword,String mode) throws NoSuchAlgorithmException, InvalidKeySpecException 
+    {
+        String generatedSecuredPasswordHash = generateStorngPasswordHash(userName.toLowerCase(),originalPassword,mode);
+        return generatedSecuredPasswordHash;
+    }
+    private static String generateStorngPasswordHash(String userName,String password,String mode) throws NoSuchAlgorithmException, InvalidKeySpecException
+    {
+        int iterations = 128;
+        char[] chars = password.toCharArray();
+        byte[] salt = getSalt(userName,password,mode);
+         
+        PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, 64 * 8);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+        byte[] hash = skf.generateSecret(spec).getEncoded();
+        return iterations + ":" + toHex(salt) + ":" + toHex(hash);
+    }
+     
+    private static byte[] getSalt(String userName,String password,String mode) throws NoSuchAlgorithmException
+    {
+    	String concatedString = userName.concat(password).concat(mode);
+        byte[] saltByteArray = concatedString.getBytes();
+        return saltByteArray;
+    }
+     
+    private static String toHex(byte[] array) throws NoSuchAlgorithmException
+    {
+        BigInteger bi = new BigInteger(1, array);
+        String hex = bi.toString(16);
+        int paddingLength = (array.length * 2) - hex.length();
+        if(paddingLength > 0)
+        {
+            return String.format("%0"  +paddingLength + "d", 0) + hex;
+        }else{
+            return hex;
+        }
+    }
+    
+    public static boolean validatePassword(String originalPassword, String storedPassword) throws NoSuchAlgorithmException, InvalidKeySpecException
+    {
+        String[] parts = storedPassword.split(":");
+        int iterations = Integer.parseInt(parts[0]);
+        byte[] salt = fromHex(parts[1]);
+        byte[] hash = fromHex(parts[2]);
+         
+        PBEKeySpec spec = new PBEKeySpec(originalPassword.toCharArray(), salt, iterations, hash.length * 8);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+        byte[] testHash = skf.generateSecret(spec).getEncoded();
+         
+        int diff = hash.length ^ testHash.length;
+        for(int i = 0; i < hash.length && i < testHash.length; i++)
+        {
+            diff |= hash[i] ^ testHash[i];
+        }
+        return diff == 0;
+    }
+    private static byte[] fromHex(String hex) throws NoSuchAlgorithmException
+    {
+        byte[] bytes = new byte[hex.length() / 2];
+        for(int i = 0; i<bytes.length ;i++)
+        {
+            bytes[i] = (byte)Integer.parseInt(hex.substring(2 * i, 2 * i + 2), 16);
+        }
+        return bytes;
+    }
+    
+    public static List<String> validatePhoneNumber(Integer countryCode, List<String> phoneNumber){
+    	List<String> invalidNumbers=new ArrayList<String>();
+    	logger.info("Phone Number to validate:"+phoneNumber+",country code"+countryCode);
+    	PhoneNumberUtil phoneNumberUtil = PhoneNumberUtil.getInstance();
+    	String isoCode = phoneNumberUtil.getRegionCodeForCountryCode(countryCode);
+    	boolean isValid = false;
+    	PhoneNumber parsedNumber = null;
+    	try{
+    		for(String number: phoneNumber){
+    			parsedNumber = phoneNumberUtil.parse(number, isoCode);
+    			logger.info("Parsed No:"+parsedNumber);
+    			isValid = phoneNumberUtil.isValidNumber(parsedNumber);
+    			logger.info("isValid:"+isValid);
+    			if(!isValid){
+    				invalidNumbers.add(number);
+    			}
+    		}
+	        return invalidNumbers;
+    	}catch (NumberParseException e) {
+	        e.printStackTrace();
+	    }catch (NullPointerException e) {
+	        e.printStackTrace();
+	    }
+    	return invalidNumbers;
+    }
+
+	public static boolean isValidEmail(String email){
+		Pattern pattern = Pattern.compile(EMAIL_PATTERN);
+		Matcher matcher = pattern.matcher(email);
+		return matcher.matches();
+	}
+
+	public static String getFormattedPhoneNumber(String phoneNumber, String countryCode) {
+		PhoneNumberUtil phoneNumberUtil = PhoneNumberUtil.getInstance();
+		PhoneNumber parsedNumber = null;
+		try {
+			parsedNumber = phoneNumberUtil.parse(phoneNumber, countryCode);
+			String number = phoneNumberUtil.formatOutOfCountryCallingNumber(parsedNumber, Constants.DEFAULT_BASECOUNTRYCODE);
+			number = number.replaceAll(" ", "+");
+			number = number.replaceAll("-", "");
+			logger.info("Formatted no:" + number);
+			return number;
+		} catch (NumberParseException e) {
+			e.printStackTrace();
+		} catch (NullPointerException e) {
+			e.printStackTrace();
+		}
+		return phoneNumber;
+	}
+    
+    public static void polygonToLatLongs(List<GetLatLongDTO> gem ,String polyCords){
+        String[] latLongList = polyCords.replace("POLYGON((","").replace("))","").split(",");
+        for(String i : latLongList){
+            String[] lat_long  = i.split(" ");
+                 GetLatLongDTO temp = new GetLatLongDTO();
+                 temp.setLatitude(Double.parseDouble(lat_long[0]));
+                 temp.setLongitude(Double.parseDouble(lat_long[1]));
+                 gem.add(temp); 	
+            }
+        return ;
+	}
+    
+	/**
+	 * 
+	 * This method receives double value and converts it to a string without the
+	 * scientific notation and considering four decimal places.
+	 * 
+	 * @param number
+	 * @return
+	 */
+	public static String convertDecimalToString(Double number) {
+		String convertedString = "";
+		String decimalPlace = "%.4f"; // Considers 4 decimal places.
+		try {
+			if (number != null) {
+				convertedString = String.format(decimalPlace, number);
+			}
+		} catch (ArithmeticException e) {
+			logger.info("Error while converting Decimal number To String format : " + number);
+		}
+		return convertedString;
+	}
+
+	public static void resourceCloseUtil(FileInputStream fis, Workbook workbook, FileOutputStream fos) {
+		if (null != fos) {
+			try {
+				fos.flush();
+				fos.close();
+			} catch (IOException e) {
+				logger.error("File Output Stream cannot be closed.", e);
+			}
+		}
+		if (null != fis) {
+			try {
+				fis.close();
+			} catch (IOException e) {
+				logger.error("File Input Stream cannot be closed.", e);
+			}
+		}
+		if (null != workbook) {
+			try {
+				workbook.close();
+			} catch (IOException e) {
+				logger.error("Workbook cannot be closed.", e);
+			}
+		}
+	}
+	
+
+	public static String convertStringListToQueryParamString(List<String> stringList) {
+		StringJoiner joiner = new StringJoiner("','","'", "'");
+        for(String s: stringList)
+            joiner.add(s);
+
+        return joiner.toString();
+	}
+
+	public static String convertIntegerListToQueryParamString(List<Integer> integerList) {
+		return StringUtils.join(integerList, ",");
+	}
+	
+	public static void close(ResultSet rs, Statement ps, Connection conn) {
+		if (rs != null){
+			try {
+				rs.close();
+			} catch (SQLException e) {
+				logger.error("The result set cannot be closed.", e);
+			}
+		}
+		if (ps != null){
+			try {
+				ps.close();
+			} catch (SQLException e) {
+				logger.error("The statement cannot be closed.", e);
+			}
+		}
+		if (conn != null){
+			try {
+				conn.close();
+			} catch (SQLException e) {
+				logger.error("The data source connection cannot be closed.", e);
+			}
+		}
+
+	}
+	
+	
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public static <E extends Enum<E>> AdvanceFilterBuilderRespDTO advanceFilterQueryBuilder(List<Filter> advanceFilter, String enumName) {
+		AdvanceFilterBuilderRespDTO response = new AdvanceFilterBuilderRespDTO();
+		Map<String,String> queryKeyValueMap = new HashMap<>();
+		Map<String,List<String>> queryKeyValueListMap = new HashMap<>();
+		StringBuilder filterConditions = new StringBuilder();
+		try{
+			Class<Enum> e = getEnum(enumName);
+			if(null != e){
+				for (Filter fl : advanceFilter) {
+					SearchCol value = null;
+					if(SearchTripCol.class.getName().equalsIgnoreCase(enumName)){
+						value = (SearchCol)Enum.valueOf(e, fl.getFieldId().toUpperCase());
+					}else{
+						value = (SearchCol)Enum.valueOf(e, fl.getFieldId());
+					}
+					if(null != value){
+						String filterData = fl.getFilterData();
+						String fieldName = value.fromValue();
+						if(enumName.equalsIgnoreCase(SearchDeliveryMediumCol.class.getName())){
+							if ("name".equals(fieldName)) {
+								fieldName = "cbm."+fieldName;
+							}else if("tripName".equals(fieldName)){
+								fieldName = "td."+fieldName;
+							}else{
+								fieldName = "d."+fieldName;
+							}
+						}
+						//operation wise builder starts here
+						if(fl.getOperationSymbol().equalsIgnoreCase("in")){
+							List<String> dataStringList = tokenizeForInOperation(filterData);
+							if(null != dataStringList && dataStringList.size() > 0){
+								queryKeyValueListMap.put("aflt"+fl.getFieldId(), dataStringList);
+								filterConditions.append("AND ").append(fieldName).append(" ").append(fl.getOperationSymbol()).append(" ").append("(:").append("aflt"+fl.getFieldId()).append(")");
+							}
+						}else if(fl.getOperationSymbol().equalsIgnoreCase("between")){
+							List<String> betweenRangeStringData = tokenizeForBetweenOperation(filterData);
+							queryKeyValueMap.put("aflt"+fl.getFieldId()+"from", betweenRangeStringData.get(0));
+							queryKeyValueMap.put("aflt"+fl.getFieldId()+"to", betweenRangeStringData.get(1));
+							if(null != betweenRangeStringData && betweenRangeStringData.size() == 2){
+								filterConditions.append("AND ").append(fieldName).append(" ").append(fl.getOperationSymbol()).append(" ").append("(:").append("aflt"+fl.getFieldId()+"from").append(")").append(" AND ").append("(:").append("aflt"+fl.getFieldId()+"to").append(")");
+							}
+						}else if(fl.getOperationSymbol().equalsIgnoreCase("rlike")){
+							//filterData = filterData.replace("_", "\\_");
+							queryKeyValueMap.put("aflt"+fl.getFieldId(),filterData);
+							filterConditions.append("AND ").append(fieldName).append(" ").append(fl.getOperationSymbol()).append(" ").append("(:").append("aflt"+fl.getFieldId()).append(")");
+						}else if(fl.getOperationSymbol().equalsIgnoreCase("isempty")){
+							filterConditions.append("AND (").append(fieldName).append(" is null OR ").append(fieldName).append("='')");
+						}else if(fl.getOperationSymbol().equalsIgnoreCase("isnotempty")){
+							filterConditions.append("AND (").append(fieldName).append(" is not null AND ").append(fieldName).append("!='')");
+						}else{
+							queryKeyValueMap.put("aflt"+fl.getFieldId(),filterData);
+							filterConditions.append("AND ").append(fieldName).append(" ").append(fl.getOperationSymbol()).append(" ").append("(:").append("aflt"+fl.getFieldId()).append(")");
+						}
+					}
+				}
+				response.setQueryBuilderString(filterConditions.toString());
+				response.setKeyValueMappingMap(queryKeyValueMap);
+				response.setKeyValueMappingListMap(queryKeyValueListMap);
+			}
+		}catch(Exception ex){
+			ex.printStackTrace();
+		}
+		return response;
+	}
+	
+	private static List<String> tokenizeForInOperation(String rawString){
+		List<String> list = new ArrayList<String>();
+		try{
+			//list = new ArrayList<String>(Arrays.asList(rawString.trim().split(",")));
+			StringTokenizer stok = new StringTokenizer(rawString, ",");
+			while (stok.hasMoreTokens()) {
+				String token = stok.nextToken(); 
+				list.add(token.trim());
+			}
+			return list;
+		}catch(Exception ex){
+			ex.printStackTrace();
+		}
+		return list;
+	}
+	
+	private static List<String> tokenizeForBetweenOperation(String rawString){
+		List<String> BetweenData = new ArrayList<>();
+		try{
+			StringTokenizer stok = new StringTokenizer(rawString, ",");
+			while (stok.hasMoreTokens()) {
+			    String token = stok.nextToken(); 
+			    BetweenData.add(token);
+			}
+			return BetweenData;
+		}catch(Exception ex){
+			ex.printStackTrace();
+		}
+		return BetweenData;
+	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	static private Class<Enum> getEnum(String enumName){
+		try{
+			Class <Enum> cl = (Class<Enum>)Class.forName(enumName);
+			return cl;
+		}catch(Exception ex){
+			ex.printStackTrace();
+		}
+		return null;
+	}
+	
+	public static Long GenerateUnique10DigitRandomNumber(){
+		long[] arr = ThreadLocalRandom.current().longs(10, 1000000000L, 9999999999L).limit(1).toArray();
+		return arr[0];
+	}
+	
+	public static boolean isValidLatitudeWithNullCheck(Double lat) {		
+		return (null != lat &&lat <= 90 && lat >= -90);		
+	}		
+	
+	public static boolean isValidLongitudeWithNullCheck(Double lng) {		
+		return (null != lng &&lng <= 180 && lng >= -180);		
+	}		
+	public static String booleanToYN(String bool){
+		if(bool!=null){
+			bool = bool.toUpperCase();
+			if("TRUE".equals(bool)){
+				return "Y";
+			}
+			else if("FALSE".equals(bool)){
+				return "N";
+			}	
+			else{
+				return bool;
+			}
+		}
+		else return bool;
+	}
+}
